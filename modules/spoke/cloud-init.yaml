@@ -1,0 +1,216 @@
+#cloud-config
+package_upgrade: true
+
+packages:
+  - azure-cli
+  - curl
+  - jq
+
+write_files:
+  - path: /home/azureuser/storage-helper.sh
+    permissions: '0755'
+    owner: azureuser:azureuser
+    content: |
+      #!/bin/bash
+      
+      STORAGE_ACCOUNT="${storage_account_name}"
+      CONTAINER_NAME="${container_name}"
+      
+      # Function to get access token using managed identity
+      get_access_token() {
+          local token=$(curl -s -H "Metadata: true" \
+              "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://storage.azure.com/" \
+              | jq -r '.access_token')
+          echo "$token"
+      }
+      
+      # Function to upload a file to blob storage
+      upload_file() {
+          local file_path="$1"
+          local blob_name="$2"
+          
+          if [ -z "$file_path" ] || [ -z "$blob_name" ]; then
+              echo "Usage: upload_file <local_file_path> <blob_name>"
+              return 1
+          fi
+          
+          if [ ! -f "$file_path" ]; then
+              echo "Error: File '$file_path' not found"
+              return 1
+          fi
+          
+          local token=$(get_access_token)
+          local url="https://$STORAGE_ACCOUNT.blob.core.windows.net/$CONTAINER_NAME/$blob_name"
+          
+          curl -X PUT \
+              -H "Authorization: Bearer $token" \
+              -H "x-ms-blob-type: BlockBlob" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary "@$file_path" \
+              "$url"
+          
+          if [ $? -eq 0 ]; then
+              echo "File uploaded successfully to: $blob_name"
+          else
+              echo "Error uploading file"
+              return 1
+          fi
+      }
+      
+      # Function to download a file from blob storage
+      download_file() {
+          local blob_name="$1"
+          local local_path="$2"
+          
+          if [ -z "$blob_name" ] || [ -z "$local_path" ]; then
+              echo "Usage: download_file <blob_name> <local_file_path>"
+              return 1
+          fi
+          
+          local token=$(get_access_token)
+          local url="https://$STORAGE_ACCOUNT.blob.core.windows.net/$CONTAINER_NAME/$blob_name"
+          
+          curl -H "Authorization: Bearer $token" \
+              "$url" \
+              -o "$local_path"
+          
+          if [ $? -eq 0 ]; then
+              echo "File downloaded successfully to: $local_path"
+          else
+              echo "Error downloading file"
+              return 1
+          fi
+      }
+      
+      # Function to list blobs in the container
+      list_blobs() {
+          local token=$(get_access_token)
+          local url="https://$STORAGE_ACCOUNT.blob.core.windows.net/$CONTAINER_NAME?restype=container&comp=list"
+          
+          curl -H "Authorization: Bearer $token" \
+              "$url" \
+              | grep -o '<Name>[^<]*</Name>' \
+              | sed 's/<Name>//g' \
+              | sed 's/<\/Name>//g'
+      }
+      
+      # Function to delete a blob
+      delete_blob() {
+          local blob_name="$1"
+          
+          if [ -z "$blob_name" ]; then
+              echo "Usage: delete_blob <blob_name>"
+              return 1
+          fi
+          
+          local token=$(get_access_token)
+          local url="https://$STORAGE_ACCOUNT.blob.core.windows.net/$CONTAINER_NAME/$blob_name"
+          
+          curl -X DELETE \
+              -H "Authorization: Bearer $token" \
+              "$url"
+          
+          if [ $? -eq 0 ]; then
+              echo "Blob deleted successfully: $blob_name"
+          else
+              echo "Error deleting blob"
+              return 1
+          fi
+      }
+      
+      # Show usage if no arguments
+      if [ $# -eq 0 ]; then
+          echo "Azure Storage Helper Script"
+          echo "Usage:"
+          echo "  $0 upload <local_file> <blob_name>    - Upload a file to blob storage"
+          echo "  $0 download <blob_name> <local_file>  - Download a file from blob storage"
+          echo "  $0 list                               - List all blobs in the container"
+          echo "  $0 delete <blob_name>                 - Delete a blob from storage"
+          echo ""
+          echo "Examples:"
+          echo "  $0 upload /tmp/myfile.txt myfile.txt"
+          echo "  $0 download myfile.txt /tmp/downloaded.txt"
+          echo "  $0 list"
+          echo "  $0 delete myfile.txt"
+          exit 1
+      fi
+      
+      case "$1" in
+          upload)
+              upload_file "$2" "$3"
+              ;;
+          download)
+              download_file "$2" "$3"
+              ;;
+          list)
+              list_blobs
+              ;;
+          delete)
+              delete_blob "$2"
+              ;;
+          *)
+              echo "Invalid command. Use 'upload', 'download', 'list', or 'delete'"
+              exit 1
+              ;;
+      esac
+
+  - path: /home/azureuser/README.md
+    permissions: '0644'
+    owner: azureuser:azureuser
+    content: |
+      # VM Storage Access Guide
+      
+      This VM has a managed identity with access to the storage account: ${storage_account_name}
+      Container: ${container_name}
+      
+      ## Using the Storage Helper Script
+      
+      A helper script has been provided at `/home/azureuser/storage-helper.sh` for easy blob operations.
+      
+      ### Examples:
+      
+      ```bash
+      # Create a test file
+      echo "Hello from VM" > /tmp/test.txt
+      
+      # Upload the file
+      ./storage-helper.sh upload /tmp/test.txt test.txt
+      
+      # List all files in the container
+      ./storage-helper.sh list
+      
+      # Download the file
+      ./storage-helper.sh download test.txt /tmp/downloaded.txt
+      
+      # Delete the file
+      ./storage-helper.sh delete test.txt
+      ```
+      
+      ## Using Azure CLI
+      
+      You can also use the Azure CLI with managed identity authentication:
+      
+      ```bash
+      # Login using managed identity
+      az login --identity
+      
+      # Upload a file
+      az storage blob upload \
+          --account-name ${storage_account_name} \
+          --container-name ${container_name} \
+          --name myfile.txt \
+          --file /path/to/local/file.txt \
+          --auth-mode login
+      
+      # Download a file
+      az storage blob download \
+          --account-name ${storage_account_name} \
+          --container-name ${container_name} \
+          --name myfile.txt \
+          --file /path/to/download/file.txt \
+          --auth-mode login
+      ```
+
+runcmd:
+  - chown azureuser:azureuser /home/azureuser/storage-helper.sh
+  - chown azureuser:azureuser /home/azureuser/README.md

@@ -1,0 +1,40 @@
+# Subscription Configuration
+spoke_subscription_id   = "your-spoke-1-subscription-id"
+hub_subscription_id     = "your-hub-subscription-id"
+
+# Hub References
+hub_resource_group_name = "rg-hub-network"
+hub_vnet_name          = "vnet-hub"
+
+# Spoke Configuration
+spoke_resource_group_name = "rg-spoke-1"
+location                 = "West Europe"
+spoke_vnet_name          = "vnet-spoke-1"
+spoke_vnet_address_space = ["10.1.0.0/16"]
+
+# Subnet Configuration
+vm_subnet_address_prefix      = ["10.1.1.0/24"]
+storage_subnet_address_prefix = ["10.1.2.0/24"]
+
+# Network Security
+admin_source_address_prefix = "YOUR_PUBLIC_IP/32"  # Replace with your public IP
+
+# Storage Configuration
+storage_account_prefix = "stspoke1"
+container_name        = "data"
+
+# Virtual Machine Configuration
+vm_name               = "vm-spoke-1"
+vm_size              = "Standard_B2s"
+admin_username       = "azureuser"
+admin_ssh_public_key = "ssh-rsa YOUR_SSH_PUBLIC_KEY_HERE"  # Replace with your SSH public key
+enable_public_ip     = true
+
+# Tags
+tags = {
+  Environment = "production"
+  Project     = "hub-spoke-infrastructure"
+  ManagedBy   = "terraform"
+  Spoke       = "spoke-1"
+  Owner       = "platform-team"
+}
