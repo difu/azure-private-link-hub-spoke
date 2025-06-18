@@ -20,3 +20,14 @@ variable "enable_tagging_policy" {
   type        = bool
   default     = false
 }
+
+variable "hub_resource_group_name" {
+  description = "Name of the hub resource group containing private DNS zones"
+  type        = string
+}
+
+variable "policy_assignment_location" {
+  description = "Location for policy assignments with managed identities"
+  type        = string
+  default     = "East US"
+}
