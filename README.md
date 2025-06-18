@@ -1,7 +1,7 @@
 # Azure Hub-Spoke Infrastructure with Private Link
 
-This project implements a secure hub-and-spoke network architecture across multiple Azure subscriptions with centralized private DNS management.
-
+This project implements a secure hub-and-spoke network architecture across multiple Azure subscriptions with centralized private DNS management, following Microsoft's enterprise-scale Private Link and DNS integration best practices.
+Further reading: https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/private-link-and-dns-integration-at-scale
 ## 🧠 Architecture Overview
 
 ![Subscription Structure](docs/images/subscriptions.png)

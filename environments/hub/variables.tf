@@ -83,6 +83,12 @@ variable "enable_tagging_policy" {
   default     = false
 }
 
+variable "enable_all_privatelink_zones" {
+  description = "Whether to create all privatelink DNS zones or just essential ones"
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "Tags to apply to resources"
   type        = map(string)

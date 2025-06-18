@@ -33,3 +33,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "enable_all_privatelink_zones" {
+  description = "Whether to create all privatelink DNS zones or just essential ones"
+  type        = bool
+  default     = false
+}

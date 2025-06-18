@@ -19,13 +19,23 @@ output "vnet_name" {
 }
 
 output "private_dns_zone_id" {
-  description = "ID of the storage blob private DNS zone"
-  value       = azurerm_private_dns_zone.storage_blob.id
+  description = "ID of the storage blob private DNS zone (backward compatibility)"
+  value       = azurerm_private_dns_zone.zones["storage_blob"].id
 }
 
 output "private_dns_zone_name" {
-  description = "Name of the storage blob private DNS zone"
-  value       = azurerm_private_dns_zone.storage_blob.name
+  description = "Name of the storage blob private DNS zone (backward compatibility)"
+  value       = azurerm_private_dns_zone.zones["storage_blob"].name
+}
+
+output "private_dns_zones" {
+  description = "Map of all private DNS zones created"
+  value       = { for k, v in azurerm_private_dns_zone.zones : k => v.name }
+}
+
+output "private_dns_zone_ids" {
+  description = "Map of all private DNS zone IDs"
+  value       = { for k, v in azurerm_private_dns_zone.zones : k => v.id }
 }
 
 output "location" {

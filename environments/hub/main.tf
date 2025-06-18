@@ -36,6 +36,7 @@ module "hub" {
   vnet_address_space            = var.hub_vnet_address_space
   gateway_subnet_address_prefix = var.gateway_subnet_address_prefix
   dns_subnet_address_prefix     = var.dns_subnet_address_prefix
+  enable_all_privatelink_zones  = var.enable_all_privatelink_zones
 
   tags = var.tags
 }
@@ -75,8 +76,10 @@ resource "azurerm_private_dns_zone_virtual_network_link" "storage_blob_spoke" {
 module "policies" {
   source = "../../modules/policies"
 
-  spoke_subscription_ids = var.spoke_subscription_ids
-  hub_subscription_id    = var.hub_subscription_id
-  management_group_id    = var.management_group_id
-  enable_tagging_policy  = var.enable_tagging_policy
+  spoke_subscription_ids      = var.spoke_subscription_ids
+  hub_subscription_id         = var.hub_subscription_id
+  hub_resource_group_name     = var.hub_resource_group_name
+  management_group_id         = var.management_group_id
+  enable_tagging_policy       = var.enable_tagging_policy
+  policy_assignment_location  = var.location
 }

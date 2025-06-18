@@ -21,6 +21,9 @@ enable_spoke_peering   = false
 enable_spoke_dns_link  = false
 spoke_vnet_id         = null
 
+# DNS Configuration
+enable_all_privatelink_zones = true  # Set to true for comprehensive Azure service coverage
+
 # Policy Configuration
 management_group_id    = null  # Optional: scope policies to management group
 enable_tagging_policy  = false
