@@ -24,6 +24,10 @@ Further reading: https://learn.microsoft.com/en-us/azure/cloud-adoption-framewor
 │   └── spoke-1/               # Spoke-1 deployment
 ├── scripts/                   # Helper scripts
 └── docs/                      # Documentation
+    ├── DNS_ZONE_GOVERNANCE.md    # DNS governance policies and procedures
+    ├── ARCHITECTURE.md           # Detailed architecture documentation
+    ├── DEPLOYMENT_GUIDE.md       # Step-by-step deployment guide
+    └── POLICY_AUTOMATION.md      # Azure policy automation details
 ```
 
 ## Prerequisites
