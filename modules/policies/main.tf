@@ -7,22 +7,12 @@ terraform {
   }
 }
 
-provider "azurerm" {
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = false
-    }
-  }
-}
-
-# Policy Definition: Deny creation of private DNS zones containing "privatelink"
+# Policy Definition: Deny creation of private DNS zones containing "privatelink" in spoke subscriptions
 resource "azurerm_policy_definition" "deny_privatelink_dns_zones" {
-  # count=1
   name         = "deny-privatelink-dns-zones"
   policy_type  = "Custom"
   mode         = "All"
   display_name = "Deny creation of private DNS zones containing 'privatelink'"
-  management_group_id = "/providers/Microsoft.Management/managementGroups/Spokes"
   description  = "This policy denies the creation of private DNS zones that contain 'privatelink' in their name. These zones should be centrally managed in the hub subscription."
 
   policy_rule = jsonencode({
@@ -48,25 +38,10 @@ resource "azurerm_policy_definition" "deny_privatelink_dns_zones" {
   })
 }
 
-# Policy Assignment for Spoke Subscriptions
-# resource "azurerm_policy_assignment" "deny_privatelink_dns_zones" {
-#   for_each = var.spoke_subscription_ids
-#
-#   name                 = "deny-privatelink-dns-zones-${each.key}"
-#   scope                = "/subscriptions/${each.value}"
-#   policy_definition_id = azurerm_policy_definition.deny_privatelink_dns_zones.id
-#   display_name         = "Deny privatelink DNS zones in ${each.key}"
-#   description          = "Prevents creation of private DNS zones containing 'privatelink' in spoke subscription ${each.key}"
-#
-#   metadata = jsonencode({
-#     assignedBy = "Terraform Hub-Spoke Infrastructure"
-#   })
-#
-#   parameters = jsonencode({})
-# }
-
+# Policy Assignment: Deploy deny policy to all spoke subscriptions
 resource "azurerm_subscription_policy_assignment" "deny_privatelink_dns_zones" {
   for_each = var.spoke_subscription_ids
+  
   name                 = "deny-privatelink-dns-zones-${each.key}"
   description          = "Prevents creation of private DNS zones containing 'privatelink' in spoke subscription ${each.key}"
   policy_definition_id = azurerm_policy_definition.deny_privatelink_dns_zones.id
@@ -79,13 +54,23 @@ resource "azurerm_subscription_policy_assignment" "deny_privatelink_dns_zones" {
   parameters = jsonencode({})
 }
 
-# Policy Definition: Auto-create DNS records for private endpoints
+# Policy Definition: Auto-create DNS records for private endpoints (Hub subscription)
 resource "azurerm_policy_definition" "auto_create_private_endpoint_dns" {
   name         = "auto-create-private-endpoint-dns"
   policy_type  = "Custom"
   mode         = "Indexed"
   display_name = "Auto-create DNS records for private endpoints"
   description  = "Automatically creates DNS A records in the hub private DNS zones when private endpoints are created"
+
+  parameters = jsonencode({
+    hubResourceGroupName = {
+      type = "String"
+      metadata = {
+        displayName = "Hub Resource Group Name"
+        description = "Name of the resource group containing the hub private DNS zones"
+      }
+    }
+  })
 
   policy_rule = jsonencode({
     if = {
@@ -177,7 +162,7 @@ resource "azurerm_policy_definition" "auto_create_private_endpoint_dns" {
   })
 }
 
-# Policy Assignment for Auto DNS Record Creation
+# Policy Assignment for Auto DNS Record Creation - only deploy to spoke subscriptions that exist
 resource "azurerm_subscription_policy_assignment" "auto_create_private_endpoint_dns" {
   for_each = var.spoke_subscription_ids
   
@@ -212,7 +197,7 @@ resource "azurerm_role_assignment" "policy_dns_contributor" {
   principal_id         = azurerm_subscription_policy_assignment.auto_create_private_endpoint_dns[each.key].identity[0].principal_id
 }
 
-# Policy Definition: Require specific tags on resources
+# Policy Definition: Require specific tags on resources (optional)
 resource "azurerm_policy_definition" "require_tags" {
   count = var.enable_tagging_policy ? 1 : 0
 
@@ -258,30 +243,14 @@ resource "azurerm_policy_definition" "require_tags" {
   })
 }
 
-# Policy Assignment for Tag Requirements
-# resource "azurerm_policy_assignment" "require_tags" {
-#   count = var.enable_tagging_policy ? 1 : 0
-#
-#   name                 = "require-hub-spoke-tags"
-#   scope                = var.management_group_id != null ? var.management_group_id : "/subscriptions/${var.hub_subscription_id}"
-#   policy_definition_id = azurerm_policy_definition.require_tags[0].id
-#   display_name         = "Require tags on hub-spoke resources"
-#   description          = "Enforces required tags on hub-spoke infrastructure resources"
-#
-#   metadata = jsonencode({
-#     assignedBy = "Terraform Hub-Spoke Infrastructure"
-#   })
-#
-#   parameters = jsonencode({})
-# }
-
+# Policy Assignment for Tag Requirements (optional)
 resource "azurerm_subscription_policy_assignment" "require_tags" {
   count = var.enable_tagging_policy ? 1 : 0
   name                 = "require-hub-spoke-tags"
   display_name         = "Require tags on hub-spoke resources"
   description          = "Enforces required tags on hub-spoke infrastructure resources"
   policy_definition_id = azurerm_policy_definition.require_tags[0].id
-  subscription_id      = var.management_group_id != null ? var.management_group_id : "/subscriptions/${var.hub_subscription_id}"
+  subscription_id      = var.hub_subscription_id
 
   metadata = jsonencode({
     assignedBy = "Terraform Hub-Spoke Infrastructure"
