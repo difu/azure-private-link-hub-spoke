@@ -21,10 +21,9 @@ The architecture spans multiple subscriptions as shown above:
 
 ### Azure Requirements
 - Two Azure subscriptions (hub and spoke)
-- Appropriate RBAC permissions in both subscriptions:
-  - `Owner` or `Contributor` + `User Access Administrator`
-  - Permission to create policy assignments
-- Service Principal with cross-subscription access (recommended)
+- User account with `Owner` or `User Access Administrator` role in both subscriptions
+- Permission to create service principals and policy assignments
+- jq installed for JSON processing (`brew install jq` on macOS)
 
 ### Network Planning
 - **Hub VNet**: `10.0.0.0/16`
@@ -46,19 +45,37 @@ cd azure-private-link-hub-spoke
 ```
 
 ### 1.2 Configure Authentication
+
+#### Option A: Automated Service Principal Setup (Recommended)
 ```bash
-# Login to Azure
+# Login with your user account (requires Owner permissions)
 az login
 
 # List available subscriptions
 az account list --output table
 
-# Set default subscription to hub
-az account set --subscription "Work_Subscription_A"
+# Create service principals with proper cross-subscription permissions
+./scripts/setup-service-principals.sh <hub_subscription_id> <spoke_subscription_id> [environment_name]
+
+# Example:
+./scripts/setup-service-principals.sh \
+  "12345678-1234-1234-1234-123456789012" \
+  "87654321-4321-4321-4321-210987654321" \
+  "prod"
 ```
 
-### 1.3 Create Service Principal (Recommended)
+This script automatically:
+- Creates dedicated service principals for hub and spoke
+- Assigns proper cross-subscription roles for VNet peering
+- Configures DNS Zone Contributor permissions for policy automation
+- Generates secure credentials file
+- Validates all permissions
+
+#### Option B: Manual Service Principal Setup
 ```bash
+# Login to Azure
+az login
+
 # Create service principal with contributor access to both subscriptions
 az ad sp create-for-rbac --name "hub-spoke-terraform" \
   --role "Contributor" \
@@ -66,6 +83,42 @@ az ad sp create-for-rbac --name "hub-spoke-terraform" \
            "/subscriptions/SPOKE_SUBSCRIPTION_ID"
 
 # Note down the output for later use
+```
+
+### 1.3 Configure Environment Variables
+```bash
+# After service principal creation, configure environment
+./scripts/configure-environment.sh <environment_name>
+
+# Activate the environment
+source ./activate-<environment_name>.sh
+
+# Verify authentication
+az account show
+```
+
+This creates:
+- **Environment files**: `.env.<environment_name>` in each directory
+- **Activation script**: `activate-<environment_name>.sh` for easy environment loading
+- **Usage guide**: `USAGE-<environment_name>.md` with complete instructions
+- **Updated .gitignore**: Excludes all sensitive files from version control
+
+### 1.4 Multiple Environment Support
+
+You can create multiple isolated environments (dev, staging, prod):
+
+```bash
+# Development environment
+./scripts/setup-service-principals.sh <hub_dev_sub> <spoke_dev_sub> "dev"
+./scripts/configure-environment.sh "dev"
+
+# Production environment  
+./scripts/setup-service-principals.sh <hub_prod_sub> <spoke_prod_sub> "prod"
+./scripts/configure-environment.sh "prod"
+
+# Switch between environments
+source ./activate-dev.sh     # For development
+source ./activate-prod.sh    # For production
 ```
 
 ## Step 2: Deploy Hub Infrastructure
@@ -78,6 +131,9 @@ The hub infrastructure creates the core networking components shown above, inclu
 ```bash
 cd environments/hub
 cp terraform.tfvars.example terraform.tfvars
+
+# Environment should already be activated from Step 1.3
+# If not: source ../../activate-<environment_name>.sh
 ```
 
 Edit `terraform.tfvars` with your values:
@@ -148,6 +204,9 @@ The spoke infrastructure diagram above shows the complete resource topology, inc
 ```bash
 cd ../spoke-1
 cp terraform.tfvars.example terraform.tfvars
+
+# Ensure spoke environment is activated
+source .env.<environment_name>
 ```
 
 Edit `terraform.tfvars` with your values:
@@ -324,19 +383,46 @@ After successful deployment, verify:
 
 ### Common Issues
 
-1. **Cross-subscription permissions**
+1. **Service Principal Setup Issues**
+   ```bash
+   # Check if you have sufficient permissions
+   az ad user show --id $(az account show --query user.name -o tsv)
+   
+   # Verify Owner role in both subscriptions
+   az role assignment list --assignee $(az account show --query user.name -o tsv) --all
+   
+   # If setup fails, check existing service principals
+   az ad sp list --display-name "sp-hub-terraform-*"
+   ```
+
+2. **Environment Activation Issues**
+   ```bash
+   # Check if environment file exists
+   ls -la .env.*
+   
+   # Check activation script
+   ls -la activate-*.sh
+   
+   # Manually source environment
+   export $(cat .env.<environment_name> | grep -v '^#' | xargs)
+   ```
+
+3. **Cross-subscription permissions**
    ```bash
    # Verify service principal permissions
    az role assignment list --assignee <service-principal-id>
+   
+   # Check hub service principal has spoke access
+   az role assignment list --assignee <hub-sp-id> --scope /subscriptions/<spoke-subscription-id>
    ```
 
-2. **DNS resolution issues**
+4. **DNS resolution issues**
    ```bash
    # Check private DNS zone links
    az network private-dns link vnet list --zone-name privatelink.blob.core.windows.net --resource-group rg-hub-network
    ```
 
-3. **Storage access denied**
+5. **Storage access denied**
    ```bash
    # Verify managed identity role assignment
    az role assignment list --scope /subscriptions/.../resourceGroups/rg-spoke-1/providers/Microsoft.Storage/storageAccounts/...
@@ -349,7 +435,22 @@ After successful deployment, verify:
 
 ## Cleanup
 
-To destroy the infrastructure:
+### Complete Infrastructure and Service Principal Cleanup
+
+#### Option A: Automated Cleanup (Recommended)
+```bash
+# Destroy infrastructure (spoke first, then hub)
+cd environments/spoke-1
+terraform destroy
+
+cd ../hub
+terraform destroy
+
+# Remove service principals and cleanup all configuration
+../../scripts/cleanup-service-principals.sh <environment_name>
+```
+
+#### Option B: Manual Cleanup
 ```bash
 # Destroy spoke first
 cd environments/spoke-1
@@ -358,6 +459,62 @@ terraform destroy
 # Then destroy hub
 cd ../hub
 terraform destroy
+
+# Manually remove service principals
+az ad sp delete --id <hub-service-principal-id>
+az ad sp delete --id <spoke-service-principal-id>
+
+# Remove configuration files
+rm -f .env.*
+rm -f ../../activate-*.sh
+rm -f ../../service-principal-credentials-*.json
+rm -f ../../USAGE-*.md
+```
+
+### Verification
+After cleanup, verify all resources are removed:
+```bash
+# Check no remaining role assignments
+az role assignment list --assignee <service-principal-id>
+
+# Verify resource groups are deleted
+az group list --output table
+```
+
+## Quick Reference
+
+### Service Principal Management Scripts
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| `setup-service-principals.sh` | Create service principals with cross-subscription permissions | `./setup-service-principals.sh <hub_sub_id> <spoke_sub_id> [env_name]` |
+| `configure-environment.sh` | Set up environment variables and activation scripts | `./configure-environment.sh <env_name>` |
+| `cleanup-service-principals.sh` | Remove service principals and clean up configuration | `./cleanup-service-principals.sh <env_name>` |
+
+### Environment Files Structure
+```
+├── environments/
+│   ├── hub/.env.<env_name>          # Hub authentication
+│   └── spoke-1/.env.<env_name>      # Spoke authentication
+├── .env.<env_name>                  # Root environment file
+├── activate-<env_name>.sh           # Environment activation script
+├── service-principal-credentials-<env_name>.json  # Secure credentials
+└── USAGE-<env_name>.md             # Environment-specific usage guide
+```
+
+### Common Commands
+```bash
+# Quick setup for new environment
+./scripts/setup-service-principals.sh <hub_sub> <spoke_sub> "prod"
+./scripts/configure-environment.sh "prod"
+source ./activate-prod.sh
+
+# Deploy infrastructure
+cd environments/hub && terraform apply
+cd environments/spoke-1 && terraform apply
+
+# Complete cleanup
+./scripts/cleanup-service-principals.sh "prod"
 ```
 
 ## Next Steps
