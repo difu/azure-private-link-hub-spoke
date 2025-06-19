@@ -40,3 +40,12 @@ terraform.rc
 .idea
 /environments/spoke-1/terraform.tfvars
 /environments/hub/terraform.tfvars
+# Service Principal Credentials
+service-principal-credentials-*.json
+.env.*
+activate-*.sh
+*.tfvars.backup
+# Terraform
+.terraform.lock.hcl
+terraform.tfplan
+plan.tfplan
