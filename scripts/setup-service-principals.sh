@@ -192,6 +192,12 @@ assign_role "$HUB_SP_APP_ID" "Network Contributor" "/subscriptions/${SPOKE_SUBSC
 # Hub SP needs DNS Zone Contributor on spoke for policy-based DNS record management
 assign_role "$HUB_SP_APP_ID" "Private DNS Zone Contributor" "/subscriptions/${SPOKE_SUBSCRIPTION_ID}" "spoke subscription (for DNS automation)"
 
+# Hub SP needs Resource Policy Contributor on hub for creating policy definitions
+assign_role "$HUB_SP_APP_ID" "Resource Policy Contributor" "/subscriptions/${HUB_SUBSCRIPTION_ID}" "hub subscription (for policy definitions)"
+
+# Hub SP needs Resource Policy Contributor on spoke for policy assignments
+assign_role "$HUB_SP_APP_ID" "Resource Policy Contributor" "/subscriptions/${SPOKE_SUBSCRIPTION_ID}" "spoke subscription (for policy assignments)"
+
 # Spoke SP needs Network Contributor on hub for VNet peering
 assign_role "$SPOKE_SP_APP_ID" "Network Contributor" "/subscriptions/${HUB_SUBSCRIPTION_ID}" "hub subscription (for VNet peering)"
 
@@ -242,7 +248,7 @@ echo "🏢 HUB SERVICE PRINCIPAL"
 echo "   Name: ${HUB_SP_NAME}"
 echo "   App ID: ${HUB_SP_APP_ID}"
 echo "   Subscription: ${HUB_SUBSCRIPTION_ID}"
-echo "   Roles: Contributor (hub), Network Contributor (spoke), Private DNS Zone Contributor (spoke)"
+echo "   Roles: Contributor (hub), Resource Policy Contributor (hub), Network Contributor (spoke), Private DNS Zone Contributor (spoke), Resource Policy Contributor (spoke)"
 echo ""
 echo "🌐 SPOKE SERVICE PRINCIPAL"
 echo "   Name: ${SPOKE_SP_NAME}"
