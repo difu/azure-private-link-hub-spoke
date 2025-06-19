@@ -288,13 +288,13 @@ terraform plan
 # Hub subscription
 az login --service-principal \\
   -u ${HUB_CLIENT_ID} \\
-  -p "$(echo '${HUB_CLIENT_SECRET}' | base64 -d)" \\
+  -p "${HUB_CLIENT_SECRET}" \\
   --tenant ${HUB_TENANT_ID}
 
 # Spoke subscription  
 az login --service-principal \\
   -u ${SPOKE_CLIENT_ID} \\
-  -p "$(echo '${SPOKE_CLIENT_SECRET}' | base64 -d)" \\
+  -p "${SPOKE_CLIENT_SECRET}" \\
   --tenant ${SPOKE_TENANT_ID}
 \`\`\`
 
