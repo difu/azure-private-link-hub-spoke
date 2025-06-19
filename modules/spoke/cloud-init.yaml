@@ -1,15 +1,18 @@
 #cloud-config
 package_upgrade: true
 
-packages:
-  - azure-cli
-  - curl
-  - jq
+# Add Azure CLI repository and install packages
+runcmd:
+  # Install Azure CLI using Microsoft's official method
+  - curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+  # Ensure curl and jq are installed
+  - apt-get update
+  - apt-get install -y curl jq
 
 write_files:
   - path: /home/azureuser/storage-helper.sh
     permissions: '0755'
-    owner: azureuser:azureuser
+    defer: true
     content: |
       #!/bin/bash
       
@@ -45,6 +48,7 @@ write_files:
           curl -X PUT \
               -H "Authorization: Bearer $token" \
               -H "x-ms-blob-type: BlockBlob" \
+              -H "x-ms-version: 2020-04-08" \
               -H "Content-Type: application/octet-stream" \
               --data-binary "@$file_path" \
               "$url"
@@ -71,6 +75,7 @@ write_files:
           local url="https://$STORAGE_ACCOUNT.blob.core.windows.net/$CONTAINER_NAME/$blob_name"
           
           curl -H "Authorization: Bearer $token" \
+              -H "x-ms-version: 2020-04-08" \
               "$url" \
               -o "$local_path"
           
@@ -88,6 +93,7 @@ write_files:
           local url="https://$STORAGE_ACCOUNT.blob.core.windows.net/$CONTAINER_NAME?restype=container&comp=list"
           
           curl -H "Authorization: Bearer $token" \
+              -H "x-ms-version: 2020-04-08" \
               "$url" \
               | grep -o '<Name>[^<]*</Name>' \
               | sed 's/<Name>//g' \
@@ -108,6 +114,7 @@ write_files:
           
           curl -X DELETE \
               -H "Authorization: Bearer $token" \
+              -H "x-ms-version: 2020-04-08" \
               "$url"
           
           if [ $? -eq 0 ]; then
@@ -156,7 +163,7 @@ write_files:
 
   - path: /home/azureuser/README.md
     permissions: '0644'
-    owner: azureuser:azureuser
+    defer: true
     content: |
       # VM Storage Access Guide
       
@@ -211,6 +218,8 @@ write_files:
           --auth-mode login
       ```
 
-runcmd:
-  - chown azureuser:azureuser /home/azureuser/storage-helper.sh
-  - chown azureuser:azureuser /home/azureuser/README.md
+# Final setup commands run after user creation
+final_message: |
+  Azure VM setup completed successfully!
+  Storage helper script available at: /home/azureuser/storage-helper.sh
+  Documentation available at: /home/azureuser/README.md
