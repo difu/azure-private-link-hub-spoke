@@ -73,13 +73,13 @@ resource "azurerm_private_dns_zone_virtual_network_link" "storage_blob_spoke" {
   depends_on = [module.hub]
 }
 
+# Azure Policies for DNS zone governance and automation
 module "policies" {
   source = "../../modules/policies"
 
   spoke_subscription_ids      = var.spoke_subscription_ids
   hub_subscription_id         = var.hub_subscription_id
   hub_resource_group_name     = var.hub_resource_group_name
-  management_group_id         = var.management_group_id
   enable_tagging_policy       = var.enable_tagging_policy
   policy_assignment_location  = var.location
 }
