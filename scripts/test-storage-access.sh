@@ -32,12 +32,14 @@ print_error() {
 # Default values
 SPOKE_DIR="../environments/spoke-1"
 HUB_DIR="../environments/hub"
+PRIVATE_KEY=""
 
 # Function to show usage
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo "Options:"
     echo "  -s, --spoke-dir DIR    Path to spoke terraform directory (default: $SPOKE_DIR)"
+    echo "  -k, --private-key FILE Path to SSH private key file"
     echo "  -h, --help            Show this help message"
     echo ""
     echo "This script tests storage access from the VM by:"
@@ -52,6 +54,10 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         -s|--spoke-dir)
             SPOKE_DIR="$2"
+            shift 2
+            ;;
+        -k|--private-key)
+            PRIVATE_KEY="$2"
             shift 2
             ;;
         -h|--help)
@@ -201,8 +207,18 @@ EOF
 print_status "Connecting to VM and running storage access tests..."
 print_status "VM: $ADMIN_USERNAME@$VM_IP"
 
+# Build SSH command with optional private key
+SSH_CMD="ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30"
+if [ ! -z "$PRIVATE_KEY" ]; then
+    if [ ! -f "$PRIVATE_KEY" ]; then
+        print_error "Private key file not found: $PRIVATE_KEY"
+        exit 1
+    fi
+    SSH_CMD="$SSH_CMD -i $PRIVATE_KEY"
+fi
+
 # Run the test script on the VM
-ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$ADMIN_USERNAME@$VM_IP" "bash -s $STORAGE_ACCOUNT $CONTAINER_NAME" <<< "$TEST_SCRIPT"
+$SSH_CMD "$ADMIN_USERNAME@$VM_IP" "bash -s $STORAGE_ACCOUNT $CONTAINER_NAME" <<< "$TEST_SCRIPT"
 
 if [ $? -eq 0 ]; then
     print_success "Storage access tests completed successfully!"

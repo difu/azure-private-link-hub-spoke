@@ -29,9 +29,13 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Get the script directory and set absolute paths
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
 # Default values
-HUB_DIR="../environments/hub"
-SPOKE_DIR="../environments/spoke-1"
+HUB_DIR="$PROJECT_ROOT/environments/hub"
+SPOKE_DIR="$PROJECT_ROOT/environments/spoke-1"
 
 # Function to show usage
 show_usage() {
@@ -130,7 +134,8 @@ update_tfvars() {
         sed -i.tmp "s|^${var_name}[[:space:]]*=.*|${var_name} = ${var_value}|" "$file"
         rm -f "${file}.tmp"
     else
-        # Variable doesn't exist, add it
+        # Variable doesn't exist, add it with proper newline
+        echo "" >> "$file"
         echo "${var_name} = ${var_value}" >> "$file"
     fi
 }
