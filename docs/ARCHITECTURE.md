@@ -70,15 +70,18 @@ The infrastructure is deployed across the subscription structure shown above, wi
 - **Gateway Subnet**: `10.0.1.0/24` - Reserved for future VPN/ExpressRoute gateway
 - **DNS Subnet**: `10.0.2.0/24` - For DNS servers and management
 
-#### Private DNS Zone
-- **Zone**: `privatelink.blob.core.windows.net`
-- **Purpose**: Centralized DNS resolution for Azure Storage private endpoints
+#### Private DNS Zones
+- **Primary Zone**: `privatelink.blob.core.windows.net` (default)
+- **Comprehensive Coverage**: 25+ Azure service zones (configurable)
+- **Purpose**: Centralized DNS resolution for all Azure private endpoints
 - **Links**: Connected to hub VNet and all spoke VNets
+- **Management**: Automated via DeployIfNotExists policies
 
 #### Azure Policies
 - **Scope**: All spoke subscriptions
-- **Rule**: Deny creation of private DNS zones containing "privatelink"
-- **Effect**: Ensures centralized DNS management
+- **Deny Policy**: Prevents creation of private DNS zones containing "privatelink"
+- **DeployIfNotExists Policy**: Automatically creates DNS A records for private endpoints
+- **Effect**: Ensures centralized DNS management with automated lifecycle management
 
 ### Spoke Infrastructure (Spoke_1)
 
@@ -156,9 +159,85 @@ Spoke 1-B       Spoke 2-B
 ```
 
 ### Service-Specific DNS Zones
+
+The hub can be configured to deploy comprehensive DNS zone coverage:
+
+#### Storage Services
+- `privatelink.blob.core.windows.net` - Blob Storage
+- `privatelink.table.core.windows.net` - Table Storage
+- `privatelink.queue.core.windows.net` - Queue Storage
+- `privatelink.file.core.windows.net` - File Storage
+- `privatelink.dfs.core.windows.net` - Data Lake Gen2
+
+#### Database Services
 - `privatelink.database.windows.net` - Azure SQL Database
-- `privatelink.vault.azure.net` - Azure Key Vault
-- `privatelink.azurecr.io` - Azure Container Registry
+- `privatelink.mysql.database.azure.com` - MySQL
+- `privatelink.postgres.database.azure.com` - PostgreSQL
+- `privatelink.documents.azure.com` - Cosmos DB (SQL)
+- `privatelink.mongo.cosmos.azure.com` - Cosmos DB (MongoDB)
+
+#### Security & Identity
+- `privatelink.vaultcore.azure.net` - Key Vault
+- `privatelink.managedhsm.azure.net` - Managed HSM
+
+#### Container & Web Services
+- `privatelink.azurecr.io` - Container Registry
+- `privatelink.azurewebsites.net` - App Service / Functions
+- `privatelink.api.azureml.ms` - Machine Learning
+
+#### Analytics & AI
+- `privatelink.dev.azuresynapse.net` - Synapse Analytics
+- `privatelink.cognitiveservices.azure.com` - Cognitive Services
+
+#### Configuration
+```hcl
+# Enable all zones (enterprise recommendation)
+enable_all_privatelink_zones = true
+```
+
+## Automated DNS Record Management
+
+### DeployIfNotExists Policy Framework
+
+The infrastructure includes automated DNS record management through Azure Policy:
+
+#### Policy Trigger
+When a private endpoint is created in any spoke subscription, the policy automatically:
+
+1. **Detects the service type** (blob, SQL, Key Vault, etc.)
+2. **Identifies the target DNS zone** in the hub subscription
+3. **Creates an A record** mapping the private endpoint FQDN to its private IP
+4. **Manages the record lifecycle** (creation and deletion)
+
+#### Supported Services
+- **Storage**: blob, table, queue, file, dfs
+- **SQL Server**: Azure SQL Database
+- **Key Vault**: Azure Key Vault
+- **Extensible**: Additional services can be added to the policy
+
+#### Implementation Details
+```hcl
+# Policy uses managed identity with DNS Zone Contributor role
+identity {
+  type = "SystemAssigned"
+}
+
+# Cross-subscription operation
+scope = "/subscriptions/${spoke_subscription_id}"
+role_assignment_scope = "/subscriptions/${hub_subscription_id}/resourceGroups/${hub_rg}"
+```
+
+#### Benefits
+- **Zero-touch DNS management**: No manual intervention required
+- **Consistent naming**: Standardized DNS record creation
+- **Lifecycle automation**: Records follow private endpoint lifecycle
+- **Cross-subscription support**: Works across organizational boundaries
+- **Error prevention**: Eliminates manual DNS configuration mistakes
+
+### DNS Resolution Flow
+```
+Private Endpoint Created (Spoke) → Policy Triggered → DNS Record Created (Hub) → Resolution Available (All Spokes)
+```
 
 ## Compliance and Governance
 

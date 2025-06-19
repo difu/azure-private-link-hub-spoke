@@ -98,9 +98,15 @@ hub_vnet_address_space         = ["10.0.0.0/16"]
 gateway_subnet_address_prefix  = ["10.0.1.0/24"]
 dns_subnet_address_prefix      = ["10.0.2.0/24"]
 
+# DNS Configuration
+enable_all_privatelink_zones = true  # Enterprise: all 25+ zones, Dev: false for blob only
+
 # Initially disable peering (enable after spoke deployment)
 enable_spoke_peering   = false
 enable_spoke_dns_link  = false
+
+# Policy Configuration
+enable_tagging_policy = false  # Set to true to enforce resource tagging
 
 # Tags
 tags = {
@@ -120,8 +126,17 @@ tags = {
 ### 2.3 Note Hub Outputs
 Save the following outputs for spoke configuration:
 - `hub_vnet_id`
-- `private_dns_zone_id`
+- `private_dns_zone_id` (backward compatibility)
+- `private_dns_zones` (all zones if comprehensive coverage enabled)
 - `hub_resource_group_name`
+
+```bash
+# View all outputs
+terraform output
+
+# View specific DNS zones created
+terraform output private_dns_zones
+```
 
 ## Step 3: Deploy Spoke Infrastructure
 
@@ -256,6 +271,29 @@ az network private-dns zone create \
   --name internal.difu.com
 ```
 
+### 6.3 Test Automated DNS Record Creation
+Create a private endpoint and verify automatic DNS record creation:
+```bash
+# Create a test Key Vault with private endpoint
+az keyvault create --name kv-test-spoke1 --resource-group rg-spoke-1 --location "West Europe"
+
+# Create private endpoint (triggers policy)
+az network private-endpoint create \
+  --name pe-keyvault-test \
+  --resource-group rg-spoke-1 \
+  --vnet-name vnet-spoke-1 \
+  --subnet storage-subnet \
+  --private-connection-resource-id "/subscriptions/.../vaults/kv-test-spoke1" \
+  --group-ids vault \
+  --connection-name keyvault-connection
+
+# Check if DNS record was automatically created in hub
+az account set --subscription "your-hub-subscription-id"
+az network private-dns record-set a list \
+  --zone-name privatelink.vaultcore.azure.net \
+  --resource-group rg-hub-network
+```
+
 ## Architecture Validation
 
 After successful deployment, verify:
@@ -279,6 +317,8 @@ After successful deployment, verify:
 - Spoke cannot create privatelink DNS zones
 - Spoke can create other private DNS zones
 - Centralized policy management
+- Automatic DNS record creation for private endpoints
+- Policy-driven DNS lifecycle management
 
 ## Troubleshooting
 
