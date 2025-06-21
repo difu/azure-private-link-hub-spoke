@@ -3,6 +3,7 @@
 # Azure Hub-Spoke Environment Configuration Script
 # Sets up environment variables for Terraform deployments
 # Creates .env files for each environment directory
+# Compatible with both bash and zsh environments
 
 set -euo pipefail
 
@@ -138,39 +139,68 @@ create_env_file ".env.${ENVIRONMENT_NAME}" "$HUB_SUBSCRIPTION_ID" "$HUB_TENANT_I
 ACTIVATE_SCRIPT="./activate-${ENVIRONMENT_NAME}.sh"
 log "Creating environment activation script: ${ACTIVATE_SCRIPT}"
 
-cat > "$ACTIVATE_SCRIPT" << EOF
+cat > "$ACTIVATE_SCRIPT" << 'EOF'
 #!/bin/bash
 
-# Environment Activation Script for ${ENVIRONMENT_NAME}
+# Environment Activation Script for {{ENVIRONMENT_NAME}}
 # Source this script to load environment variables
+# Compatible with both bash and zsh
 
 # Check if running in a shell that supports sourcing
-if [ "\${BASH_SOURCE[0]}" == "\${0}" ]; then
-    echo "❌ This script should be sourced, not executed directly"
-    echo "Usage: source ${ACTIVATE_SCRIPT}"
-    echo "   or: . ${ACTIVATE_SCRIPT}"
-    exit 1
+# Compatible with both bash and zsh
+if [ -n "${BASH_SOURCE:-}" ]; then
+    # In bash
+    if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
+        echo "❌ This script should be sourced, not executed directly"
+        echo "Usage: source {{ACTIVATE_SCRIPT_NAME}}"
+        echo "   or: . {{ACTIVATE_SCRIPT_NAME}}"
+        exit 1
+    fi
+elif [ -n "${ZSH_VERSION:-}" ]; then
+    # In zsh
+    if [ "${(%):-%x}" == "${0}" ]; then
+        echo "❌ This script should be sourced, not executed directly"
+        echo "Usage: source {{ACTIVATE_SCRIPT_NAME}}"
+        echo "   or: . {{ACTIVATE_SCRIPT_NAME}}"
+        return 1
+    fi
 fi
 
 # Load environment variables
-if [ -f ".env.${ENVIRONMENT_NAME}" ]; then
-    export \$(cat ".env.${ENVIRONMENT_NAME}" | grep -v '^#' | grep -v '^\$' | xargs)
-    echo "✅ Environment '${ENVIRONMENT_NAME}' activated"
-    echo "🏢 Hub Subscription: \${ARM_SUBSCRIPTION_ID}"
-    echo "🌐 Active Tenant: \${ARM_TENANT_ID}"
+if [ -f ".env.{{ENVIRONMENT_NAME}}" ]; then
+    # Use a method compatible with both bash and zsh
+    set -a  # automatically export all variables
+    . ".env.{{ENVIRONMENT_NAME}}"
+    set +a  # turn off automatic export
+    
+    echo "✅ Environment '{{ENVIRONMENT_NAME}}' activated"
+    echo "🏢 Hub Subscription: ${ARM_SUBSCRIPTION_ID}"
+    echo "🌐 Active Tenant: ${ARM_TENANT_ID}"
     
     # Verify Azure CLI authentication
-    if az account show --subscription "\${ARM_SUBSCRIPTION_ID}" >/dev/null 2>&1; then
+    if az account show --subscription "${ARM_SUBSCRIPTION_ID}" >/dev/null 2>&1; then
         echo "✅ Azure CLI authentication verified"
     else
         echo "⚠️  Azure CLI not authenticated or subscription access issue"
-        echo "   You may need to run: az login --service-principal -u \${ARM_CLIENT_ID} -p \${ARM_CLIENT_SECRET} --tenant \${ARM_TENANT_ID}"
+        echo "   You may need to run: az login --service-principal -u ${ARM_CLIENT_ID} -p ${ARM_CLIENT_SECRET} --tenant ${ARM_TENANT_ID}"
     fi
 else
-    echo "❌ Environment file not found: .env.${ENVIRONMENT_NAME}"
-    echo "   Run: ./configure-environment.sh ${ENVIRONMENT_NAME}"
+    echo "❌ Environment file not found: .env.{{ENVIRONMENT_NAME}}"
+    echo "   Run: ./configure-environment.sh {{ENVIRONMENT_NAME}}"
 fi
 EOF
+
+# Replace placeholders in the generated script
+# Use portable sed syntax that works on both macOS and Linux
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    sed -i '' "s/{{ENVIRONMENT_NAME}}/${ENVIRONMENT_NAME}/g" "$ACTIVATE_SCRIPT"
+    sed -i '' "s/{{ACTIVATE_SCRIPT_NAME}}/$(basename "$ACTIVATE_SCRIPT")/g" "$ACTIVATE_SCRIPT"
+else
+    # Linux
+    sed -i "s/{{ENVIRONMENT_NAME}}/${ENVIRONMENT_NAME}/g" "$ACTIVATE_SCRIPT"
+    sed -i "s/{{ACTIVATE_SCRIPT_NAME}}/$(basename "$ACTIVATE_SCRIPT")/g" "$ACTIVATE_SCRIPT"
+fi
 
 chmod +x "$ACTIVATE_SCRIPT"
 success "Created: ${ACTIVATE_SCRIPT}"
@@ -346,7 +376,7 @@ success "Created: ${USAGE_FILE}"
 success "Environment configuration completed!"
 
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Configuration Summary:"
 echo ""
 echo "📁 Environment Files Created:"
@@ -367,4 +397,4 @@ echo "3. Deploy spoke: cd environments/spoke-1 && terraform init && terraform ap
 echo "4. Read full guide: cat USAGE-${ENVIRONMENT_NAME}.md"
 echo ""
 echo "🔐 Security: All environment files have 600 permissions and are excluded from git"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
